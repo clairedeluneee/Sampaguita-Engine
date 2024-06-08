@@ -217,6 +217,16 @@ class PlayState extends MusicBeatSubState
   public var totalNotesHit:Float = 0;
 
   /**
+   * The number of times the player's combo broke. Does not attribute to misscount.
+   */
+  public var comboBreaks:Int = 0;
+
+  /**
+   * The number of notes that despawned because they either left the screen or were tapped too early.
+   */
+  public var missCount:Int = 0;
+
+  /**
    * Start at this point in the song once the countdown is done.
    * For example, if `startTimestamp` is `30000`, the song will start at the 30 second mark.
    * Used for chart playtesting or practice.
@@ -470,6 +480,11 @@ class PlayState extends MusicBeatSubState
    * The text that shows information about the song on the bottom right.
    */
   var songText:FlxText;
+
+  /**
+   * Shameless self plug.
+   */
+  var watermarkText:FlxText;
 
   /**
    * The bar which displays the player's health.
@@ -911,8 +926,9 @@ class PlayState extends MusicBeatSubState
       songScore = 0;
       totalNotesPlayed = 0;
       totalNotesHit = 0;
+      comboBreaks = 0;
 
-      songText.text = currentChart.songName + ' (' + currentChart.songArtist + ', ' + currentDifficulty + ') | Sampaguita Engine 1.0';
+      songText.text = currentChart.songName + '\n' + currentDifficulty;
 
       Highscore.tallies.combo = 0;
       Countdown.performCountdown(currentStageId.startsWith('school'));
@@ -1418,8 +1434,8 @@ class PlayState extends MusicBeatSubState
 
     if (!startingSong
       && FlxG.sound.music != null
-      && (Math.abs(FlxG.sound.music.time - (Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 200
-        || Math.abs(vocals.checkSyncError(Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 200))
+      && (Math.abs(FlxG.sound.music.time - (Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 20
+        || Math.abs(vocals.checkSyncError(Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 20))
     {
       trace("VOCALS NEED RESYNC");
       if (vocals != null) trace(vocals.checkSyncError(Conductor.instance.songPosition + Conductor.instance.instrumentalOffset));
@@ -1584,19 +1600,29 @@ class PlayState extends MusicBeatSubState
     scoreText.zIndex = 802;
     add(scoreText);
 
-    songText = new FlxText(4, FlxG.height - 48, 0, '', 20);
+    songText = new FlxText(16, FlxG.height - 48 - 16, 0, '', 20);
     songText.setFormat(Paths.font('vcr.ttf'), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
     songText.scrollFactor.set();
     songText.zIndex = 803;
-    songText.text = currentChart.songName + ' (' + currentChart.songArtist + ', ' + currentDifficulty + ') | Sampaguita Engine 1.0';
-    songText.y = FlxG.height - songText.height - 4;
+    songText.text = currentChart.songName + '\n' + currentDifficulty;
+    songText.y = FlxG.height - songText.height - 16;
     add(songText);
+
+    watermarkText = new FlxText(16, FlxG.height - 48 - 16, 0, '', 20);
+    watermarkText.setFormat(Paths.font('vcr.ttf'), 16, FlxColor.WHITE, RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+    watermarkText.scrollFactor.set();
+    watermarkText.zIndex = 804;
+    watermarkText.text = 'Sampaguita Engine\nPrototype ' + Constants.VERSION;
+    watermarkText.y = FlxG.height - watermarkText.height - 16;
+    watermarkText.x = FlxG.width - watermarkText.width - 16;
+    add(watermarkText);
 
     // Move the health bar to the HUD camera.
     healthBar.cameras = [camHUD];
     healthBarBG.cameras = [camHUD];
     scoreText.cameras = [camHUD];
     songText.cameras = [camHUD];
+    watermarkText.cameras = [camHUD];
   }
 
   /**
@@ -2075,7 +2101,9 @@ class PlayState extends MusicBeatSubState
       scoreText.text = 'Score:  '
         + songScore
         + '\nRating: '
-        + (totalNotesPlayed == 0 ? 'N/A' : FlxStringUtil.formatMoney(totalNotesHit / totalNotesPlayed * 100, true, true) + '%');
+        + (totalNotesPlayed == 0 ? 'N/A' : FlxStringUtil.formatMoney(totalNotesHit / totalNotesPlayed * 100, true, true) + '%')
+        + '\nBreaks: '
+        + comboBreaks;
     }
   }
 
@@ -2538,6 +2566,7 @@ class PlayState extends MusicBeatSubState
       // Break the combo.
       if (Highscore.tallies.combo >= 10) comboPopUps.displayCombo(0);
       Highscore.tallies.combo = 0;
+      comboBreaks++;
     }
 
     if (playSound)
@@ -2566,6 +2595,9 @@ class PlayState extends MusicBeatSubState
 
     // Calling event.cancelEvent() skips animations and penalties. Neat!
     if (event.eventCanceled) return;
+
+    // Sampaguita TODO: Implement GT toggle. Exit out of function early while I'm at it.
+    return;
 
     health += event.healthChange;
     songScore += event.scoreChange;
@@ -2718,6 +2750,7 @@ class PlayState extends MusicBeatSubState
     {
       // Break the combo, but don't increment tallies.misses.
       if (Highscore.tallies.combo >= 10) comboPopUps.displayCombo(0);
+      comboBreaks++;
       Highscore.tallies.combo = 0;
     }
     else
@@ -2773,6 +2806,7 @@ class PlayState extends MusicBeatSubState
       }
     }
     comboPopUps.displayRating(daRating);
+
     if (Highscore.tallies.combo >= 10 || Highscore.tallies.combo == 0) comboPopUps.displayCombo(Highscore.tallies.combo);
 
     if (daNote.isHoldNote && daNote.holdNoteSprite != null)
