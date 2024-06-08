@@ -16,6 +16,7 @@ import flixel.tweens.FlxTween;
 import flixel.ui.FlxBar;
 import flixel.util.FlxColor;
 import flixel.util.FlxTimer;
+import flixel.util.FlxStringUtil;
 import funkin.api.newgrounds.NGio;
 import funkin.audio.FunkinSound;
 import funkin.audio.VoicesGroup;
@@ -202,6 +203,18 @@ class PlayState extends MusicBeatSubState
    * TODO: Move this to its own class.
    */
   public var songScore:Int = 0;
+
+  // Sampaguita TODO: Implement accuracies
+
+  /**
+   * The total amount of notes hit / missed.
+   */
+  public var totalNotesPlayed:Int = 0;
+
+  /**
+   * The total amount of notes hit.
+   */
+  public var totalNotesHit:Float = 0;
 
   /**
    * Start at this point in the song once the countdown is done.
@@ -452,6 +465,11 @@ class PlayState extends MusicBeatSubState
    * The FlxText which displays the current score.
    */
   var scoreText:FlxText;
+
+  /**
+   * The text that shows information about the song on the bottom right.
+   */
+  var songText:FlxText;
 
   /**
    * The bar which displays the player's health.
@@ -891,6 +909,11 @@ class PlayState extends MusicBeatSubState
 
       health = Constants.HEALTH_STARTING;
       songScore = 0;
+      totalNotesPlayed = 0;
+      totalNotesHit = 0;
+
+      songText.text = currentChart.songName + ' (' + currentChart.songArtist + ', ' + currentDifficulty + ') | Sampaguita Engine 1.0';
+
       Highscore.tallies.combo = 0;
       Countdown.performCountdown(currentStageId.startsWith('school'));
 
@@ -1092,6 +1115,8 @@ class PlayState extends MusicBeatSubState
     opponentStrumline.clean();
 
     songScore = 0;
+    totalNotesPlayed = 0;
+    totalNotesHit = 0;
     updateScoreText();
 
     health = Constants.HEALTH_STARTING;
@@ -1554,15 +1579,24 @@ class PlayState extends MusicBeatSubState
 
     // The score text below the health bar.
     scoreText = new FlxText(healthBarBG.x + healthBarBG.width - 190, healthBarBG.y + 30, 0, '', 20);
-    scoreText.setFormat(Paths.font('vcr.ttf'), 16, FlxColor.WHITE, RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+    scoreText.setFormat(Paths.font('vcr.ttf'), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
     scoreText.scrollFactor.set();
     scoreText.zIndex = 802;
     add(scoreText);
+
+    songText = new FlxText(4, FlxG.height - 48, 0, '', 20);
+    songText.setFormat(Paths.font('vcr.ttf'), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
+    songText.scrollFactor.set();
+    songText.zIndex = 803;
+    songText.text = currentChart.songName + ' (' + currentChart.songArtist + ', ' + currentDifficulty + ') | Sampaguita Engine 1.0';
+    songText.y = FlxG.height - songText.height - 4;
+    add(songText);
 
     // Move the health bar to the HUD camera.
     healthBar.cameras = [camHUD];
     healthBarBG.cameras = [camHUD];
     scoreText.cameras = [camHUD];
+    songText.cameras = [camHUD];
   }
 
   /**
@@ -1758,14 +1792,14 @@ class PlayState extends MusicBeatSubState
     add(opponentStrumline);
 
     // Position the player strumline on the right half of the screen
-    playerStrumline.x = FlxG.width / 2 + Constants.STRUMLINE_X_OFFSET; // Classic style
+    playerStrumline.x = FlxG.width / 2 + Constants.STRUMLINE_X_OFFSET + 42; // Classic style
     // playerStrumline.x = FlxG.width - playerStrumline.width - Constants.STRUMLINE_X_OFFSET; // Centered style
     playerStrumline.y = Preferences.downscroll ? FlxG.height - playerStrumline.height - Constants.STRUMLINE_Y_OFFSET : Constants.STRUMLINE_Y_OFFSET;
     playerStrumline.zIndex = 1001;
     playerStrumline.cameras = [camHUD];
 
     // Position the opponent strumline on the left half of the screen
-    opponentStrumline.x = Constants.STRUMLINE_X_OFFSET;
+    opponentStrumline.x = Constants.STRUMLINE_X_OFFSET + 42;
     opponentStrumline.y = Preferences.downscroll ? FlxG.height - opponentStrumline.height - Constants.STRUMLINE_Y_OFFSET : Constants.STRUMLINE_Y_OFFSET;
     opponentStrumline.zIndex = 1000;
     opponentStrumline.cameras = [camHUD];
@@ -2038,7 +2072,10 @@ class PlayState extends MusicBeatSubState
     }
     else
     {
-      scoreText.text = 'Score:' + songScore;
+      scoreText.text = 'Score:  '
+        + songScore
+        + '\nRating: '
+        + (totalNotesPlayed == 0 ? 'N/A' : FlxStringUtil.formatMoney(totalNotesHit / totalNotesPlayed * 100, true, true) + '%');
     }
   }
 
@@ -2406,6 +2443,7 @@ class PlayState extends MusicBeatSubState
 
   function goodNoteHit(note:NoteSprite, input:PreciseInputEvent):Void
   {
+    totalNotesPlayed += 1;
     // Calculate the input latency (do this as late as possible).
     // trace('Compare: ${PreciseInputManager.getCurrentTimestamp()} - ${input.timestamp}');
     var inputLatencyNs:Int64 = PreciseInputManager.getCurrentTimestamp() - input.timestamp;
@@ -2450,7 +2488,7 @@ class PlayState extends MusicBeatSubState
   function onNoteMiss(note:NoteSprite, playSound:Bool = false, healthChange:Float):Void
   {
     // If we are here, we already CALLED the onNoteMiss script hook!
-
+    totalNotesPlayed++;
     health += healthChange;
     songScore -= 10;
 
@@ -2654,18 +2692,22 @@ class PlayState extends MusicBeatSubState
         Highscore.tallies.sick += 1;
         Highscore.tallies.totalNotesHit++;
         isComboBreak = Constants.JUDGEMENT_SICK_COMBO_BREAK;
+        totalNotesHit += 1;
       case 'good':
         Highscore.tallies.good += 1;
         Highscore.tallies.totalNotesHit++;
         isComboBreak = Constants.JUDGEMENT_GOOD_COMBO_BREAK;
+        totalNotesHit += 0.66;
       case 'bad':
         Highscore.tallies.bad += 1;
         Highscore.tallies.totalNotesHit++;
         isComboBreak = Constants.JUDGEMENT_BAD_COMBO_BREAK;
+        totalNotesHit += 0.25;
       case 'shit':
         Highscore.tallies.shit += 1;
         Highscore.tallies.totalNotesHit++;
         isComboBreak = Constants.JUDGEMENT_SHIT_COMBO_BREAK;
+        totalNotesHit -= 0.5;
       default:
         FlxG.log.error('Wuh? Buh? Guh? Note hit judgement was $daRating!');
     }
