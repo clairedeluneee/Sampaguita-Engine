@@ -1,25 +1,35 @@
 package funkin.play;
 
-import flixel.addons.display.FlxPieDial;
-import flixel.addons.transition.FlxTransitionableState;
-import flixel.addons.transition.Transition;
+// Flixel Core
 import flixel.FlxCamera;
 import flixel.FlxObject;
 import flixel.FlxState;
 import flixel.FlxSubState;
+// Flixel Math
 import flixel.math.FlxMath;
 import flixel.math.FlxPoint;
 import flixel.math.FlxRect;
+// Flixel Addons
+import flixel.addons.display.FlxPieDial;
+import flixel.addons.transition.FlxTransitionableState;
+import flixel.addons.transition.Transition;
+// Flixel Text
 import flixel.text.FlxText;
+// Flixel Tweens
 import flixel.tweens.FlxEase;
 import flixel.tweens.FlxTween;
+// Flixel UI
 import flixel.ui.FlxBar;
+// Flixel Utilities
 import flixel.util.FlxColor;
 import flixel.util.FlxTimer;
 import flixel.util.FlxStringUtil;
+// FNF API - Newgrounds
 import funkin.api.newgrounds.NGio;
+// FNF Audio
 import funkin.audio.FunkinSound;
 import funkin.audio.VoicesGroup;
+// Dialogue
 import funkin.data.dialogue.conversation.ConversationRegistry;
 import funkin.data.event.SongEventRegistry;
 import funkin.data.notestyle.NoteStyleData;
@@ -472,6 +482,16 @@ class PlayState extends MusicBeatSubState
    * RENDER OBJECTS
    */
   /**
+   * Timer pie.
+   */
+  var timerPie:FlxPieDial;
+
+  /**
+   * Timer text.
+   */
+  var timerText:FlxText;
+
+  /**
    * The FlxText which displays the current score.
    */
   var scoreText:FlxText;
@@ -854,6 +874,7 @@ class PlayState extends MusicBeatSubState
     var list = FlxG.sound.list;
     updateHealthBar();
     updateScoreText();
+    updateTimer();
 
     // Handle restarting the song when needed (player death or pressing Retry)
     if (needsReset)
@@ -928,7 +949,13 @@ class PlayState extends MusicBeatSubState
       totalNotesHit = 0;
       comboBreaks = 0;
 
-      songText.text = currentChart.songName + '\n' + currentDifficulty;
+      songText.text = currentChart.songName
+        + ' - '
+        + currentDifficulty
+        + '\n'
+        + currentChart.songArtist
+        + ' | '
+        + (currentChart.charter ?? 'Unknown Charter');
 
       Highscore.tallies.combo = 0;
       Countdown.performCountdown(currentStageId.startsWith('school'));
@@ -1434,8 +1461,8 @@ class PlayState extends MusicBeatSubState
 
     if (!startingSong
       && FlxG.sound.music != null
-      && (Math.abs(FlxG.sound.music.time - (Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 20
-        || Math.abs(vocals.checkSyncError(Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 20))
+      && (Math.abs(FlxG.sound.music.time - (Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 150
+        || Math.abs(vocals.checkSyncError(Conductor.instance.songPosition + Conductor.instance.instrumentalOffset)) > 150))
     {
       trace("VOCALS NEED RESYNC");
       if (vocals != null) trace(vocals.checkSyncError(Conductor.instance.songPosition + Conductor.instance.instrumentalOffset));
@@ -1575,10 +1602,17 @@ class PlayState extends MusicBeatSubState
   }
 
   /**
-   * Initializes the health bar on the HUD.
+   * Initializes the health bar on the HUD, as well as some UI elements.
    */
   function initHealthBar():Void
   {
+    timerPie = new FlxPieDial(4, 4, 42, 0xFFFFFFFF, 400, FlxPieDialShape.SQUARE, true, 41);
+    timerPie.scrollFactor.set(0, 0);
+    timerPie.screenCenter(X);
+    timerPie.zIndex = 799;
+    timerPie.y = Preferences.downscroll ? FlxG.height - timerPie.height - 16 : 16;
+    add(timerPie);
+
     var healthBarYPos:Float = Preferences.downscroll ? FlxG.height * 0.1 : FlxG.height * 0.9;
     healthBarBG = FunkinSprite.create(0, healthBarYPos, 'healthBar');
     healthBarBG.screenCenter(X);
@@ -1597,14 +1631,22 @@ class PlayState extends MusicBeatSubState
     scoreText = new FlxText(healthBarBG.x + healthBarBG.width - 190, healthBarBG.y + 30, 0, '', 20);
     scoreText.setFormat(Paths.font('vcr.ttf'), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
     scoreText.scrollFactor.set();
-    scoreText.zIndex = 802;
+    scoreText.zIndex = 1200;
+    scoreText.text = '';
+    scoreText.y = Preferences.downscroll ? 16 : FlxG.height - scoreText.height - 16;
     add(scoreText);
 
     songText = new FlxText(16, FlxG.height - 48 - 16, 0, '', 20);
     songText.setFormat(Paths.font('vcr.ttf'), 16, FlxColor.WHITE, LEFT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
     songText.scrollFactor.set();
     songText.zIndex = 803;
-    songText.text = currentChart.songName + '\n' + currentDifficulty;
+    songText.text = currentChart.songName
+      + ' - '
+      + currentDifficulty
+      + '\n'
+      + currentChart.songArtist
+      + ' | '
+      + (currentChart.charter ?? 'Unknown Charter');
     songText.y = FlxG.height - songText.height - 16;
     add(songText);
 
@@ -1612,12 +1654,13 @@ class PlayState extends MusicBeatSubState
     watermarkText.setFormat(Paths.font('vcr.ttf'), 16, FlxColor.WHITE, RIGHT, FlxTextBorderStyle.OUTLINE, FlxColor.BLACK);
     watermarkText.scrollFactor.set();
     watermarkText.zIndex = 804;
-    watermarkText.text = 'Sampaguita Engine\nPrototype ' + Constants.VERSION;
+    watermarkText.text = 'Sampaguita Engine\nDev Build - 0.1 (' + Constants.GIT_HASH + ')';
     watermarkText.y = FlxG.height - watermarkText.height - 16;
     watermarkText.x = FlxG.width - watermarkText.width - 16;
     add(watermarkText);
 
     // Move the health bar to the HUD camera.
+    timerPie.cameras = [camHUD];
     healthBar.cameras = [camHUD];
     healthBarBG.cameras = [camHUD];
     scoreText.cameras = [camHUD];
@@ -2087,6 +2130,14 @@ class PlayState extends MusicBeatSubState
   }
 
   /**
+   * Updates the timer pie and text.
+   */
+  function updateTimer():Void
+  {
+    timerPie.amount = Conductor.instance.songPosition < 0 ? 0 : Conductor.instance.songPosition / get_currentSongLengthMs();
+  }
+
+  /**
    * Updates the position and contents of the score display.
    */
   function updateScoreText():Void
@@ -2098,13 +2149,14 @@ class PlayState extends MusicBeatSubState
     }
     else
     {
-      scoreText.text = 'Score:  '
+      scoreText.text = 'Score: '
         + songScore
-        + '\nRating: '
+        + ' | Rating: '
         + (totalNotesPlayed == 0 ? 'N/A' : FlxStringUtil.formatMoney(totalNotesHit / totalNotesPlayed * 100, true, true) + '%')
-        + '\nBreaks: '
+        + ' | Breaks: '
         + comboBreaks;
     }
+    scoreText.x = FlxG.width / 2 - (scoreText.width / 2);
   }
 
   /**
